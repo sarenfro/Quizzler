@@ -3,11 +3,20 @@ from pathlib import Path
 
 import pandas as pd
 from fastapi import FastAPI, HTTPException
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 XLSX_PATH = Path(__file__).parent / "quiz.xlsx"
+STATIC_PATH = Path(__file__).parent / "static"
 
 app = FastAPI(title="Quizzler API", description="Quiz study guide powered by your Excel file")
+app.mount("/static", StaticFiles(directory=STATIC_PATH), name="static")
+
+
+@app.get("/")
+def root():
+    return FileResponse(STATIC_PATH / "index.html")
 
 
 def load_questions() -> list[dict]:
@@ -30,7 +39,6 @@ def load_questions() -> list[dict]:
 
 @app.get("/question/random")
 def get_random_question():
-    """Return a random question without revealing the answer."""
     questions = load_questions()
     q = random.choice(questions)
     return {
@@ -47,19 +55,17 @@ class AnswerSubmission(BaseModel):
 
 @app.post("/answer")
 def submit_answer(submission: AnswerSubmission):
-    """Submit an answer for a question and find out if it's correct."""
     questions = load_questions()
     matches = [q for q in questions if q["id"] == submission.id]
     if not matches:
         raise HTTPException(status_code=404, detail=f"Question with id {submission.id} not found")
-
     q = matches[0]
     user_answer = submission.answer.strip().upper()
     correct = user_answer == q["right_answer"]
-
     return {
         "correct": correct,
         "your_answer": user_answer,
         "right_answer": q["right_answer"],
         "right_answer_text": q["options"].get(q["right_answer"]),
     }
+ 

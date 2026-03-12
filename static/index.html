@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Quizzler</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      background: #0f172a;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      color: #e2e8f0;
+      padding: 24px;
+    }
+    h1 {
+      font-size: 2rem;
+      font-weight: 700;
+      letter-spacing: -0.5px;
+      margin-bottom: 8px;
+      background: linear-gradient(135deg, #818cf8, #c084fc);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    .score { font-size: 0.9rem; color: #94a3b8; margin-bottom: 32px; }
+    .score span { color: #818cf8; font-weight: 600; }
+    .card {
+      background: #1e293b;
+      border: 1px solid #334155;
+      border-radius: 20px;
+      padding: 36px;
+      max-width: 640px;
+      width: 100%;
+      box-shadow: 0 25px 50px rgba(0,0,0,0.4);
+    }
+    .question-number { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 1px; color: #64748b; margin-bottom: 12px; }
+    .question-text { font-size: 1.2rem; font-weight: 600; line-height: 1.6; color: #f1f5f9; margin-bottom: 28px; min-height: 60px; }
+    .options { display: flex; flex-direction: column; gap: 12px; }
+    .option-btn {
+      display: flex; align-items: center; gap: 14px;
+      background: #0f172a; border: 1.5px solid #334155; border-radius: 12px;
+      padding: 14px 18px; cursor: pointer; text-align: left;
+      color: #cbd5e1; font-size: 0.95rem; transition: all 0.15s ease; width: 100%;
+    }
+    .option-btn:hover:not(:disabled) { border-color: #818cf8; color: #f1f5f9; background: #1e2a3a; }
+    .option-btn:disabled { cursor: default; }
+    .option-label {
+      min-width: 30px; height: 30px; border-radius: 8px; background: #1e293b;
+      display: flex; align-items: center; justify-content: center;
+      font-weight: 700; font-size: 0.85rem; color: #818cf8; flex-shrink: 0; transition: all 0.15s ease;
+    }
+    .option-btn.correct { border-color: #22c55e; background: rgba(34,197,94,0.1); color: #86efac; }
+    .option-btn.correct .option-label { background: #22c55e; color: #fff; }
+    .option-btn.wrong { border-color: #ef4444; background: rgba(239,68,68,0.1); color: #fca5a5; }
+    .option-btn.wrong .option-label { background: #ef4444; color: #fff; }
+    .option-btn.reveal { border-color: #22c55e; background: rgba(34,197,94,0.07); color: #86efac; }
+    .option-btn.reveal .option-label { background: #22c55e; color: #fff; }
+    .feedback { margin-top: 20px; padding: 14px 18px; border-radius: 12px; font-size: 0.95rem; font-weight: 600; text-align: center; display: none; }
+    .feedback.correct { background: rgba(34,197,94,0.15); color: #4ade80; border: 1px solid rgba(34,197,94,0.3); }
+    .feedback.wrong { background: rgba(239,68,68,0.15); color: #f87171; border: 1px solid rgba(239,68,68,0.3); }
+    .next-btn {
+      margin-top: 24px; width: 100%; padding: 14px; border-radius: 12px; border: none;
+      background: linear-gradient(135deg, #818cf8, #c084fc); color: #fff;
+      font-size: 1rem; font-weight: 600; cursor: pointer; display: none; transition: opacity 0.15s ease;
+    }
+    .next-btn:hover { opacity: 0.9; }
+    .loading { color: #64748b; font-size: 1rem; text-align: center; padding: 40px 0; }
+  </style>
+</head>
+<body>
+  <h1>Quizzler</h1>
+  <div class="score">Score: <span id="score">0</span> / <span id="total">0</span></div>
+  <div class="card">
+    <div class="question-number" id="question-number">Question</div>
+    <div class="question-text" id="question-text"><span class="loading">Loading question...</span></div>
+    <div class="options" id="options"></div>
+    <div class="feedback" id="feedback"></div>
+    <button class="next-btn" id="next-btn" onclick="loadQuestion()">Next Question →</button>
+  </div>
+  <script>
+    let currentId = null, score = 0, total = 0, questionCount = 0;
+
+    async function loadQuestion() {
+      const questionText = document.getElementById('question-text');
+      const optionsEl = document.getElementById('options');
+      const feedback = document.getElementById('feedback');
+      const nextBtn = document.getElementById('next-btn');
+      questionText.innerHTML = '<span class="loading">Loading...</span>';
+      optionsEl.innerHTML = '';
+      feedback.style.display = 'none';
+      nextBtn.style.display = 'none';
+      const res = await fetch('/question/random');
+      const q = await res.json();
+      currentId = q.id;
+      questionCount++;
+      document.getElementById('question-number').textContent = `Question ${questionCount}`;
+      questionText.textContent = q.question;
+      for (const [letter, text] of Object.entries(q.options)) {
+        const btn = document.createElement('button');
+        btn.className = 'option-btn';
+        btn.innerHTML = `<span class="option-label">${letter}</span> ${text}`;
+        btn.onclick = () => submitAnswer(letter);
+        optionsEl.appendChild(btn);
+      }
+    }
+
+    async function submitAnswer(answer) {
+      const buttons = document.querySelectorAll('.option-btn');
+      buttons.forEach(b => b.disabled = true);
+      const res = await fetch('/answer', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: currentId, answer })
+      });
+      const result = await res.json();
+      total++;
+      if (result.correct) score++;
+      document.getElementById('score').textContent = score;
+      document.getElementById('total').textContent = total;
+      const letters = ['A', 'B', 'C', 'D'];
+      buttons.forEach((btn, i) => {
+        const letter = letters[i];
+        if (letter === answer && result.correct) btn.classList.add('correct');
+        else if (letter === answer && !result.correct) btn.classList.add('wrong');
+        else if (letter === result.right_answer) btn.classList.add('reveal');
+      });
+      const feedback = document.getElementById('feedback');
+      feedback.style.display = 'block';
+      if (result.correct) {
+        feedback.className = 'feedback correct';
+        feedback.textContent = '✓ Correct!';
+      } else {
+        feedback.className = 'feedback wrong';
+        feedback.textContent = `✗ The correct answer was ${result.right_answer}: ${result.right_answer_text}`;
+      }
+      document.getElementById('next-btn').style.display = 'block';
+    }
+
+    loadQuestion();
+  </script>
+</body>
+</html>
+
