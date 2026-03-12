@@ -3,11 +3,20 @@ from pathlib import Path
 
 import pandas as pd
 from fastapi import FastAPI, HTTPException
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 XLSX_PATH = Path(__file__).parent / "quiz.xlsx"
+STATIC_PATH = Path(__file__).parent / "static"
 
 app = FastAPI(title="Quizzler API", description="Quiz study guide powered by your Excel file")
+app.mount("/static", StaticFiles(directory=STATIC_PATH), name="static")
+
+
+@app.get("/")
+def root():
+    return FileResponse(STATIC_PATH / "index.html")
 
 
 def load_questions() -> list[dict]:
